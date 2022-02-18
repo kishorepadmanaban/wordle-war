@@ -1,26 +1,55 @@
 import fs from "fs";
 import * as AWS from "aws-sdk";
 import { checkURL } from "../helpers/functions.helper";
+import request from "request";
 
-// Enter the name of the bucket that you have created here
-const BUCKET_NAME = process.env.AWS_BUCKET_NAME;
+let BUCKET_NAME;
+export const initAWS = () => {
+  BUCKET_NAME = process.env.AWS_BUCKET_NAME;
 
-AWS.config.update({
-  accessKeyId: process.env.AWS_HELLAVIEWS_ACCESS_KEY,
-  secretAccessKey: process.env.AWS_HELLAVIEWS_SECRET_KEY,
-  region: "ap-south-1", // Must be the same as your bucket
-  signatureVersion: "v4",
-  // ACL: "public-read",
-});
+  AWS.config.update({
+    accessKeyId: process.env.AWS_ACCESS_KEY_ID,
+    secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
+    region: process.env.AWS_REGION, // Must be the same as your bucket
+    signatureVersion: "v4",
+    // ACL: "public-read",
+  });
+};
 // Initializing S3 Interface
 const s3 = new AWS.S3();
+
+export const download = (url, path, callback) => {
+  request.head(url, (err, res, body) => {
+    request(url).pipe(fs.createWriteStream(path)).on("close", callback);
+  });
+};
+
+export const migrateImageToS3 = (url) => {
+  return new Promise((resolve, reject) => {
+    let filename = Date.now() + ".jpg";
+    let localPath = "assets/images/" + filename;
+    download(url, localPath, async () => {
+      console.log("✅ Done!");
+      const cb = uploadFile(localPath, filename);
+      if (cb) {
+        resolve(location);
+        fs.unlink(localPath, (err) => {
+          if (err) throw err;
+          console.log(`successfully deleted ${localPath}`);
+        });
+      } else {
+        reject();
+      }
+    });
+  });
+};
 
 export const uploadFile = async (file: string, name: string) => {
   try {
     // read content from the file
     const fileContent = fs.readFileSync(file);
     const fileType = file.split(".").pop();
-    const fileName = "s3/" + name;
+    const fileName = name;
     // setting up s3 upload parameters
     const params = {
       Bucket: BUCKET_NAME,
@@ -38,7 +67,7 @@ export const uploadFile = async (file: string, name: string) => {
 
 export const deleteFile = async (url: string) => {
   try {
-    let name = "s3/" + url.split("/").pop();
+    let name = url.split("/").pop();
     // setting up s3 upload parameters
     const params = {
       Bucket: BUCKET_NAME,
@@ -55,8 +84,7 @@ export const deleteFile = async (url: string) => {
 };
 
 export const signS3 = (req, res, next) => {
-  const fileName =
-    "s3/" + Date.now() + req.body["file_name"].replace(/\s/g, "");
+  const fileName = Date.now() + req.body["file_name"].replace(/\s/g, "");
   const fileType = req.body["file_type"];
   const s3Params = {
     Bucket: BUCKET_NAME,
@@ -84,24 +112,24 @@ export const signS3 = (req, res, next) => {
 export const getPresignedUrl = (file: string) => {
   return new Promise((resolve, reject) => {
     // read content from the file
-    let name = file.split('/').pop()
+    let name = file.split("/").pop();
     console.log(name);
-    const signedUrlExpireSeconds = 60 * 60
+    const signedUrlExpireSeconds = 60 * 60;
 
     // setting up s3 upload parameters
     const params = {
-        Bucket: BUCKET_NAME,
-        Key: name, // file name you want to save as
-        Expires: signedUrlExpireSeconds
+      Bucket: BUCKET_NAME,
+      Key: name, // file name you want to save as
+      Expires: signedUrlExpireSeconds,
     };
 
-    s3.getSignedUrl('getObject', params, function(err, data) {
-        if (err) {
-          console.log(err);
-          reject(err);
-        }
-        console.log(`File uploaded successfully. ${data}`)
-        resolve(data);
+    s3.getSignedUrl("getObject", params, function (err, data) {
+      if (err) {
+        console.log(err);
+        reject(err);
+      }
+      console.log(`File uploaded successfully. ${data}`);
+      resolve(data);
     });
-  })
+  });
 };

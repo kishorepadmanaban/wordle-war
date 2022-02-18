@@ -1,63 +1,50 @@
+import winston from "winston";
+import WinstonCloudWatch from "winston-cloudwatch";
+import morganBody from "morgan-body";
 
-interface log {
-  (log: any):  void
-}
+function Logger(app) {
+  const loggerStream = {
+    write: (message) => {
+      console.log(message);
+    },
+  };
 
-interface logger {
-  error: log,
-  log: log,
-  info: log
-}
-
-function Logger():any {
+  morganBody(app, {
+    // @ts-expect-error
+    stream: loggerStream,
+    logRequestId: true,
+    filterParameters: ["password"],
+  });
   if (process.env.NODE_ENV === "production") {
-    var winston = require("winston"),
-      WinstonCloudWatch = require("winston-aws-cloudwatch");
-
-    // when you don't provide a name the default one
-    // is CloudWatch
     winston.add(
       new WinstonCloudWatch({
+        // @ts-expect-error
         awsConfig: {
           accessKeyId: process.env.AWS_ACCESS_KEY_ID,
           secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
-          region: "us-east-1",
+          region: process.env.AWS_REGION,
         },
-        logGroupName: "hellaviews-backend",
-        logStreamName: "hellaviews",
+        logGroupName: process.env.LOG_GROUP_NAME,
+        logStreamName: process.env.LOG_STREAM_NAME,
       })
     );
-  } else {
-    var winston: any = {
-      error: (log) => {
-        if (process.env.NODE_ENV === "test") {
-          return;
-        } else {
-          console.error(log);
-        }
-      },
-      log: (log) => {
-        if (process.env.NODE_ENV === "test") {
-          return;
-        } else {
-          console.log(log);
-        }
-        return;
-      },
-      info: (log: any) => {
-        if (process.env.NODE_ENV === "test") {
-          return;
-        } else {
-          console.log(log);
-        }
-        return;
-      },
-    };
-    return winston;
   }
+  var _log = console.log;
+  var _error = console.error;
 
-  // logger = winston;
-  // return winston;
+  console.error = function (log) {
+    if (process.env.NODE_ENV === "production") {
+      winston.error(log);
+    }
+    _error.apply(console, arguments);
+  };
+
+  console.log = function (log) {
+    if (process.env.NODE_ENV === "production") {
+      winston.log(log);
+    }
+    _log.apply(console, arguments);
+  };
 }
 
 export default Logger;
