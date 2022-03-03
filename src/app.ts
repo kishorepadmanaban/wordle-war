@@ -41,7 +41,7 @@ initSocketIO(io);
 if (process.env.NODE_ENV === "test") {
   process.env.DB = process.env.TEST_DB;
 }
-connectDB();
+// connectDB();
 
 app.set("view engine", "ejs");
 
