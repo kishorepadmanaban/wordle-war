@@ -10,6 +10,7 @@ type Props = {
   onEnter: () => void
   guesses: string[]
   isRevealing?: boolean
+  isSettingsModalOpen: boolean
 }
 
 export const Keyboard = ({
@@ -18,6 +19,7 @@ export const Keyboard = ({
   onEnter,
   guesses,
   isRevealing,
+  isSettingsModalOpen,
 }: Props) => {
   const charStatuses = getStatuses(guesses)
 
@@ -33,6 +35,8 @@ export const Keyboard = ({
 
   useEffect(() => {
     const listener = (e: KeyboardEvent) => {
+      if (isSettingsModalOpen)
+        return
       if (e.code === 'Enter') {
         onEnter()
       } else if (e.code === 'Backspace') {
@@ -49,6 +53,7 @@ export const Keyboard = ({
     return () => {
       window.removeEventListener('keyup', listener)
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [onEnter, onDelete, onChar])
 
   return (

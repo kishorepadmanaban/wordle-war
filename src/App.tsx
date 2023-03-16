@@ -11,6 +11,7 @@ import {
   WORD_NOT_FOUND_MESSAGE,
   CORRECT_WORD_MESSAGE,
   HARD_MODE_ALERT_MESSAGE,
+  ROOM_URL_COPIED,
 } from './constants/strings'
 import {
   MAX_WORD_LENGTH,
@@ -39,6 +40,47 @@ import './App.css'
 import { AlertContainer } from './components/alerts/AlertContainer'
 import { useAlert } from './context/AlertContext'
 import { Navbar } from './components/navbar/Navbar'
+import connectSocket from './helpers/socket.helper'
+import { nanoid } from 'nanoid'
+
+import {
+  uniqueNamesGenerator,
+  Config,
+  colors,
+  animals,
+} from 'unique-names-generator'
+
+const config: Config = {
+  dictionaries: [colors, animals],
+  separator: ' ',
+}
+
+const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent)
+
+let shortName = uniqueNamesGenerator(config)
+
+if (localStorage.getItem('name')) {
+  shortName = localStorage.getItem('name') || shortName
+} else {
+  localStorage.setItem('name', shortName)
+}
+
+async function copyTextToClipboard(text: string) {
+  if ('clipboard' in navigator) {
+    return await navigator.clipboard.writeText(text)
+  } else {
+    return document.execCommand('copy', true, text)
+  }
+}
+
+console.log('shortName', shortName)
+console.log('solution', solution)
+
+const query = new URLSearchParams(window.location.search)
+
+let socket: any
+let roomId: string | null
+let userId: string | null = localStorage.getItem('userId')
 
 function App() {
   const prefersDarkMode = window.matchMedia(
@@ -84,6 +126,8 @@ function App() {
   })
 
   const [stats, setStats] = useState(() => loadStats())
+  const [allGuesses, setAllGuesses] = useState({})
+  const [name, setName] = useState(shortName)
 
   const [isHardMode, setIsHardMode] = useState(
     localStorage.getItem('gameMode')
@@ -92,6 +136,14 @@ function App() {
   )
 
   useEffect(() => {
+    socket = connectSocket()
+    let userId = localStorage.getItem('userId')
+
+    if (!userId) {
+      localStorage.setItem('userId', nanoid(20))
+    }
+    joinRoom()
+
     // if no game state on load,
     // show the user the how-to info modal
     if (!loadGameStateFromLocalStorage()) {
@@ -99,7 +151,45 @@ function App() {
         setIsInfoModalOpen(true)
       }, WELCOME_INFO_MODAL_MS)
     }
+
+    if (socket) {
+      // socket.off('update-game')
+      // socket.on('update-game', (data: any) => {
+      //   console.log('data', data);
+      // });
+      socket.on('update-game', updateGuesses)
+      socket.on('update-all-guesses', updateAllGuesses)
+    }
   }, [])
+
+  const updateGuesses = (data: any) => {
+    const updatedGuesses = (allGuesses: any) => {
+      let guesses = { ...allGuesses, ...data.allGuesses }
+      if (Object.keys(guesses).length > Object.keys(data.allGuesses).length) {
+        let data = {
+          room_id: roomId,
+          allGuesses: guesses,
+        }
+        socket.emit('update-all-guesses', data)
+      }
+      return guesses
+    }
+    setAllGuesses(updatedGuesses)
+    // if (updatedGuesses.length > allGuesses.length) {
+    //   updateGame
+    // }
+  }
+
+  const updateAllGuesses = (data: any) => {
+    const updatedGuesses = (allGuesses: any) => {
+      let guesses = { ...allGuesses, ...data.allGuesses }
+      return guesses
+    }
+    setAllGuesses(updatedGuesses)
+    // if (updatedGuesses.length > allGuesses.length) {
+    //   updateGame
+    // }
+  }
 
   useEffect(() => {
     if (isDarkMode) {
@@ -140,6 +230,8 @@ function App() {
 
   useEffect(() => {
     saveGameStateToLocalStorage({ guesses, solution })
+    updateGame(guesses)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [guesses])
 
   useEffect(() => {
@@ -240,28 +332,160 @@ function App() {
     }
   }
 
+  const createRoom = () => {
+    roomId = nanoid(10)
+    socket.emit('join-room', { room_id: roomId })
+    updateGame(guesses)
+    let url = `https://${window.location.hostname}?room_id=${roomId}`
+    copyTextToClipboard(url)
+    console.log('url', url)
+    showSuccessAlert(ROOM_URL_COPIED, {
+      delayMs: 0,
+      onClose: () => window.location.replace(url),
+    })
+  }
+
+  const joinRoom = () => {
+    console.log('join', query.get('room_id'))
+    if (query.get('room_id')) {
+      roomId = query.get('room_id')
+      console.log('roomId', roomId)
+      socket.emit('join-room', { room_id: roomId })
+    }
+  }
+
+  const updateGame = (guesses: string[]) => {
+    if (!userId) {
+      userId = nanoid(20)
+      localStorage.setItem('userId', userId)
+    }
+    if (roomId) {
+      let data = {
+        room_id: roomId,
+        allGuesses: {
+          [userId]: {
+            name,
+            guesses,
+          },
+        },
+      }
+      console.log('updateGame')
+      // setAllGuesses({ ...allGuesses, ...data.allGuesses });
+      socket.emit('update-game', data)
+    }
+  }
+
+  const onNameChange = (event: any) => {
+    setName(event.target.value)
+    localStorage.setItem('name', event.target.value)
+  }
+
+  // console.log('guesses', guesses);
+  // console.log('currentGuess', currentGuess);
+  // console.log('isRevealing', isRevealing);
+  // console.log('currentRowClass', currentRowClass);
+  // console.log('allGuessessss', allGuesses);
+
+  let opponentGrids: any = { ...allGuesses }
+  if (userId) {
+    delete opponentGrids[userId]
+  }
+
+  console.log('isMobile', isMobile)
+
+  const marginCalc = (index: any) => {
+    if (index === 0) {
+      return '-80px'
+    }
+    return '-160px'
+  }
+
   return (
     <div className="h-screen flex flex-col">
       <Navbar
         setIsInfoModalOpen={setIsInfoModalOpen}
         setIsStatsModalOpen={setIsStatsModalOpen}
         setIsSettingsModalOpen={setIsSettingsModalOpen}
+        createRoom={createRoom}
+        roomId={roomId}
       />
-      <div className="pt-2 px-1 pb-8 md:max-w-7xl w-full mx-auto sm:px-6 lg:px-8 flex flex-col grow">
-        <div className="pb-6 grow">
-          <Grid
-            guesses={guesses}
-            currentGuess={currentGuess}
-            isRevealing={isRevealing}
-            currentRowClassName={currentRowClass}
-          />
+      <div className="pt-2 px-1 pb-8 md:max-w-7xl w-full mx-auto sm:px-6 lg:px-8 flex flex-col grow grid-container">
+        <div
+          style={{
+            flexDirection: isMobile ? 'column' : 'row',
+            overflowX: 'scroll',
+            justifyContent: 'flex-start',
+          }}
+          className="flex flex-start grow grid-wrap"
+        >
+          <div
+            style={{ width: '100%', marginRight: 50 }}
+            className="pb-6 grid-div"
+          >
+            <Grid
+              guesses={guesses}
+              currentGuess={currentGuess}
+              isRevealing={isRevealing}
+              currentRowClassName={currentRowClass}
+              name={name}
+            />
+          </div>
+          {isMobile ? (
+            <div
+              style={{
+                width: '100%',
+                display: 'flex',
+                flexDirection: 'row',
+                alignItems: 'flex-start',
+                justifyContent: 'flex-start',
+                height: 200,
+                overflowX: 'scroll',
+                overflowY: 'hidden',
+              }}
+            >
+              {Object.values(opponentGrids).map((value: any, index: number) => (
+                <div
+                  style={{
+                    transform: 'scale(0.4)',
+                    marginTop: '-120px',
+                    marginLeft: marginCalc(index),
+                  }}
+                  className="pb-6 grid-div"
+                >
+                  <Grid
+                    guesses={value.guesses}
+                    // currentGuess={currentGuess}
+                    // isRevealing={isRevealing}
+                    currentRowClassName={currentRowClass}
+                    onlyColors={true}
+                    name={value.name}
+                  />
+                </div>
+              ))}
+            </div>
+          ) : (
+            Object.values(opponentGrids).map((value: any) => (
+              <div className="pb-6 grid-div" style={{ marginRight: 50 }}>
+                <Grid
+                  guesses={value.guesses}
+                  // currentGuess={currentGuess}
+                  // isRevealing={isRevealing}
+                  currentRowClassName={currentRowClass}
+                  onlyColors={true}
+                  name={value.name}
+                />
+              </div>
+            ))
+          )}
         </div>
+        {}
         <Keyboard
           onChar={onChar}
           onDelete={onDelete}
           onEnter={onEnter}
           guesses={guesses}
           isRevealing={isRevealing}
+          isSettingsModalOpen={isSettingsModalOpen}
         />
         <InfoModal
           isOpen={isInfoModalOpen}
@@ -288,6 +512,8 @@ function App() {
           handleDarkMode={handleDarkMode}
           isHighContrastMode={isHighContrastMode}
           handleHighContrastMode={handleHighContrastMode}
+          onNameChange={onNameChange}
+          name={name}
         />
         <AlertContainer />
       </div>

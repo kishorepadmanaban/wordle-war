@@ -14,6 +14,8 @@ type Props = {
   handleDarkMode: Function
   isHighContrastMode: boolean
   handleHighContrastMode: Function
+  onNameChange: (e: React.ChangeEvent<HTMLInputElement>) => void
+  name: string
 }
 
 export const SettingsModal = ({
@@ -25,6 +27,8 @@ export const SettingsModal = ({
   handleDarkMode,
   isHighContrastMode,
   handleHighContrastMode,
+  name,
+  onNameChange
 }: Props) => {
   return (
     <BaseModal title="Settings" isOpen={isOpen} handleClose={handleClose}>
@@ -46,6 +50,10 @@ export const SettingsModal = ({
           handleFlag={handleHighContrastMode}
           description={HIGH_CONTRAST_MODE_DESCRIPTION}
         />
+        <div className="flex justify-between gap-4 py-3">
+          <div className='text-gray-500 dark:text-gray-300 mt-2 text-left'>Name:</div>
+          <input name="name" type="text" onChange={onNameChange} className="form-control" value={name} />
+        </div>
       </div>
     </BaseModal>
   )
