@@ -16,7 +16,9 @@ type Props = {
   handleHighContrastMode: Function
   onNameChange: (e: React.ChangeEvent<HTMLInputElement>) => void
   name: string
+ 
 }
+
 
 export const SettingsModal = ({
   isOpen,

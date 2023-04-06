@@ -42,6 +42,9 @@ import { useAlert } from './context/AlertContext'
 import { Navbar } from './components/navbar/Navbar'
 import connectSocket from './helpers/socket.helper'
 import { nanoid } from 'nanoid'
+import EmojiScreen from './components/reactions/emoji'
+import FlyEmoji from './components/reactions/animateemoji'
+// import EmojiKeyboard from './components/reactions/mobilekeyboard'
 
 import {
   uniqueNamesGenerator,
@@ -64,7 +67,6 @@ if (localStorage.getItem('name')) {
 } else {
   localStorage.setItem('name', shortName)
 }
-
 async function copyTextToClipboard(text: string) {
   if ('clipboard' in navigator) {
     return await navigator.clipboard.writeText(text)
@@ -73,8 +75,8 @@ async function copyTextToClipboard(text: string) {
   }
 }
 
-console.log('shortName', shortName)
-console.log('solution', solution)
+// console.log('shortName', shortName)
+// console.log('solution', solution)
 
 const query = new URLSearchParams(window.location.search)
 
@@ -155,7 +157,6 @@ function App() {
     if (socket) {
       // socket.off('update-game')
       // socket.on('update-game', (data: any) => {
-      //   console.log('data', data);
       // });
       socket.on('update-game', updateGuesses)
       socket.on('update-all-guesses', updateAllGuesses)
@@ -335,26 +336,33 @@ function App() {
   const createRoom = () => {
     roomId = nanoid(10)
     socket.emit('join-room', { room_id: roomId })
-    updateGame(guesses)
-    let url = `https://${window.location.hostname}?room_id=${roomId}`
-    copyTextToClipboard(url)
-    console.log('url', url)
+    updateGame(guesses, '', '')
+    let url1: string = ''
+    let data: string = 'development'
+    if (data === 'development') {
+      url1 = `http://localhost:3000?room_id=${roomId}`
+    } else {
+      url1 = `https://${window.location.hostname}?room_id=${roomId}`
+    }
+    copyTextToClipboard(url1)
     showSuccessAlert(ROOM_URL_COPIED, {
       delayMs: 0,
-      onClose: () => window.location.replace(url),
+      onClose: () => window.location.replace(url1),
     })
   }
 
   const joinRoom = () => {
-    console.log('join', query.get('room_id'))
     if (query.get('room_id')) {
       roomId = query.get('room_id')
-      console.log('roomId', roomId)
       socket.emit('join-room', { room_id: roomId })
     }
   }
 
-  const updateGame = (guesses: string[]) => {
+  const updateGame = (
+    guesses: string[],
+    action: string = 'GUESS',
+    emoji: any = {}
+  ) => {
     if (!userId) {
       userId = nanoid(20)
       localStorage.setItem('userId', userId)
@@ -366,11 +374,13 @@ function App() {
           [userId]: {
             name,
             guesses,
+            action,
+            emoji,
           },
         },
       }
-      console.log('updateGame')
-      // setAllGuesses({ ...allGuesses, ...data.allGuesses });
+
+      setAllGuesses({ ...allGuesses, ...data.allGuesses })
       socket.emit('update-game', data)
     }
   }
@@ -380,18 +390,10 @@ function App() {
     localStorage.setItem('name', event.target.value)
   }
 
-  // console.log('guesses', guesses);
-  // console.log('currentGuess', currentGuess);
-  // console.log('isRevealing', isRevealing);
-  // console.log('currentRowClass', currentRowClass);
-  // console.log('allGuessessss', allGuesses);
-
   let opponentGrids: any = { ...allGuesses }
   if (userId) {
     delete opponentGrids[userId]
   }
-
-  console.log('isMobile', isMobile)
 
   const marginCalc = (index: any) => {
     if (index === 0) {
@@ -399,7 +401,6 @@ function App() {
     }
     return '-160px'
   }
-
   return (
     <div className="h-screen flex flex-col">
       <Navbar
@@ -413,22 +414,58 @@ function App() {
         <div
           style={{
             flexDirection: isMobile ? 'column' : 'row',
-            overflowX: 'scroll',
             justifyContent: 'flex-start',
           }}
           className="flex flex-start grow grid-wrap"
         >
           <div
-            style={{ width: '100%', marginRight: 50 }}
+            style={
+              Object.values(opponentGrids).length > 0
+                ? {
+                    display: 'flex',
+                    gap: '20px',
+                    width: '100%',
+                    marginRight: 50,
+                  }
+                : {
+                    width: '100%',
+                    marginRight: 50,
+                  }
+            }
             className="pb-6 grid-div"
           >
-            <Grid
-              guesses={guesses}
-              currentGuess={currentGuess}
-              isRevealing={isRevealing}
-              currentRowClassName={currentRowClass}
-              name={name}
-            />
+            {Object.values(opponentGrids).length > 0 ? (
+              <>
+                <EmojiScreen
+                  sendEmoji={(emoji: any) =>
+                    updateGame(guesses, 'EMOJI', emoji)
+                  }
+                  emojiData={allGuesses}
+                />
+
+                <div>
+                  <Grid
+                    guesses={guesses}
+                    currentGuess={currentGuess}
+                    isRevealing={isRevealing}
+                    currentRowClassName={currentRowClass}
+                    name={name}
+                  />
+                </div>
+              </>
+            ) : (
+              <>
+                <div>
+                  <Grid
+                    guesses={guesses}
+                    currentGuess={currentGuess}
+                    isRevealing={isRevealing}
+                    currentRowClassName={currentRowClass}
+                    name={name}
+                  />
+                </div>
+              </>
+            )}
           </div>
           {isMobile ? (
             <div
@@ -439,7 +476,6 @@ function App() {
                 alignItems: 'flex-start',
                 justifyContent: 'flex-start',
                 height: 200,
-                overflowX: 'scroll',
                 overflowY: 'hidden',
               }}
             >
@@ -464,29 +500,45 @@ function App() {
               ))}
             </div>
           ) : (
-            Object.values(opponentGrids).map((value: any) => (
-              <div className="pb-6 grid-div" style={{ marginRight: 50 }}>
-                <Grid
-                  guesses={value.guesses}
-                  // currentGuess={currentGuess}
-                  // isRevealing={isRevealing}
-                  currentRowClassName={currentRowClass}
-                  onlyColors={true}
-                  name={value.name}
-                />
-              </div>
-            ))
+            Object.values(opponentGrids).map((value: any) => {
+              return (
+                <div className="pb-6 grid-div" style={{ marginRight: 50 }}>
+                  <>
+                    <div>
+                      <FlyEmoji emojiData={value} />
+
+                      <Grid
+                        guesses={value.guesses}
+                        // currentGuess={currentGuess}
+                        // isRevealing={isRevealing}
+                        currentRowClassName={currentRowClass}
+                        onlyColors={true}
+                        name={value.name}
+                      />
+                    </div>
+                  </>
+                </div>
+              )
+            })
           )}
         </div>
         {}
-        <Keyboard
-          onChar={onChar}
-          onDelete={onDelete}
-          onEnter={onEnter}
-          guesses={guesses}
-          isRevealing={isRevealing}
-          isSettingsModalOpen={isSettingsModalOpen}
-        />
+        <>
+          <div>
+            <Keyboard
+              onChar={onChar}
+              onDelete={onDelete}
+              onEnter={onEnter}
+              guesses={guesses}
+              isRevealing={isRevealing}
+              isSettingsModalOpen={isSettingsModalOpen}
+              // sendMobileKey={(emoji: any) =>
+              //   updateGame(guesses, 'EMOJI', emoji)
+              // }
+            />
+          </div>
+        </>
+
         <InfoModal
           isOpen={isInfoModalOpen}
           handleClose={() => setIsInfoModalOpen(false)}

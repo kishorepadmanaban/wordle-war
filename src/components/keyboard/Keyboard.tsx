@@ -3,6 +3,9 @@ import { Key } from './Key'
 import { useEffect } from 'react'
 import { ENTER_TEXT, DELETE_TEXT } from '../../constants/strings'
 import { localeAwareUpperCase } from '../../lib/words'
+// import EmojiKeyboard from '../reactions/mobilekeyboard'
+import BB_logo from '../assests/BB_logo.png'
+import '../reactions/reactions.css'
 
 type Props = {
   onChar: (value: string) => void
@@ -11,6 +14,7 @@ type Props = {
   guesses: string[]
   isRevealing?: boolean
   isSettingsModalOpen: boolean
+  // sendMobileKey: any
 }
 
 export const Keyboard = ({
@@ -20,7 +24,8 @@ export const Keyboard = ({
   guesses,
   isRevealing,
   isSettingsModalOpen,
-}: Props) => {
+}: // sendMobileKey,
+Props) => {
   const charStatuses = getStatuses(guesses)
 
   const onClick = (value: string) => {
@@ -35,8 +40,7 @@ export const Keyboard = ({
 
   useEffect(() => {
     const listener = (e: KeyboardEvent) => {
-      if (isSettingsModalOpen)
-        return
+      if (isSettingsModalOpen) return
       if (e.code === 'Enter') {
         onEnter()
       } else if (e.code === 'Backspace') {
@@ -81,7 +85,8 @@ export const Keyboard = ({
         ))}
       </div>
       <div className="flex justify-center">
-        <Key width={65.4} value="ENTER" onClick={onClick}>
+        {/* <EmojiKeyboard sendkey={(emoji: any) => sendMobileKey(emoji)} /> */}
+        <Key width={50} value="ENTER" onClick={onClick}>
           {ENTER_TEXT}
         </Key>
         {['Z', 'X', 'C', 'V', 'B', 'N', 'M'].map((key) => (
@@ -93,10 +98,17 @@ export const Keyboard = ({
             isRevealing={isRevealing}
           />
         ))}
-        <Key width={65.4} value="DELETE" onClick={onClick}>
+        <Key width={50} value="DELETE" onClick={onClick}>
           {DELETE_TEXT}
         </Key>
       </div>
+      <span>
+        <span>
+          <a target={'_blank'} href="https://brownbutton.io/">
+            <img className="logo-bb" src={BB_logo} />
+          </a>
+        </span>
+      </span>
     </div>
   )
 }
